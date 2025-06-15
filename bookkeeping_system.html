@@ -1,0 +1,178 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>簡易記帳系統</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f2f2f2;
+    }
+    h1 {
+      text-align: center;
+    }
+    .form {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 600px;
+      margin: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .form input, .form select {
+      width: 100%;
+      margin: 5px 0;
+      padding: 8px;
+    }
+    .record-list {
+      margin-top: 20px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .record-item {
+      background: #fff;
+      padding: 10px;
+      border: 1px solid #ccc;
+      margin-bottom: 10px;
+      border-radius: 5px;
+    }
+    .record-item span.amount {
+      float: right;
+      font-weight: bold;
+    }
+    .expense {
+      color: red;
+    }
+    .income {
+      color: green;
+    }
+  </style>
+</head>
+<body>
+  <h1>簡易記帳系統</h1>
+  <div class="form">
+    <input type="date" id="date" required />
+    <select id="type">
+      <option value="expense">支出</option>
+      <option value="income">收入</option>
+    </select>
+    <input type="text" id="category" placeholder="類別（如：餐飲）" required />
+    <input type="number" id="amount" placeholder="金額" required />
+    <input type="text" id="note" placeholder="備註" />
+    <button onclick="addRecord()">新增記錄</button>
+  </div>
+
+  <div class="record-list" id="records"></div>
+
+  <div style="max-width: 600px; margin: 40px auto;">
+    <h3>本月支出分類比例（圓餅圖）</h3>
+    <canvas id="pieChart"></canvas>
+
+    <h3>本月收入 vs 支出（長條圖）</h3>
+    <canvas id="barChart"></canvas>
+  </div>
+
+  <script>
+    const recordsEl = document.getElementById('records');
+    let records = JSON.parse(localStorage.getItem('records') || '[]');
+
+    function renderRecords() {
+      recordsEl.innerHTML = '';
+      records.forEach((r, i) => {
+        const div = document.createElement('div');
+        div.className = 'record-item';
+        div.innerHTML = `
+          <div>${r.date}｜${r.category}｜${r.note}
+          <span class="amount ${r.type}">${r.type === 'expense' ? '-' : '+'}${r.amount}</span></div>
+          <button onclick="deleteRecord(${i})">刪除</button>
+        `;
+        recordsEl.appendChild(div);
+      });
+
+      renderCharts();
+    }
+
+    function addRecord() {
+      const date = document.getElementById('date').value;
+      const type = document.getElementById('type').value;
+      const category = document.getElementById('category').value;
+      const amount = parseFloat(document.getElementById('amount').value);
+      const note = document.getElementById('note').value;
+
+      if (!date || !category || !amount) return alert('請填寫必要欄位');
+
+      records.push({ date, type, category, amount, note });
+      localStorage.setItem('records', JSON.stringify(records));
+      renderRecords();
+    }
+
+    function deleteRecord(index) {
+      if (confirm('確定要刪除這筆記錄？')) {
+        records.splice(index, 1);
+        localStorage.setItem('records', JSON.stringify(records));
+        renderRecords();
+      }
+    }
+
+    function renderCharts() {
+      const now = new Date();
+      const currentMonth = now.toISOString().slice(0, 7);
+
+      const filtered = records.filter(r => r.date.startsWith(currentMonth));
+      const categories = {};
+      let totalIncome = 0;
+      let totalExpense = 0;
+
+      filtered.forEach(r => {
+        if (r.type === 'expense') {
+          categories[r.category] = (categories[r.category] || 0) + r.amount;
+          totalExpense += r.amount;
+        } else {
+          totalIncome += r.amount;
+        }
+      });
+
+      const pieData = {
+        labels: Object.keys(categories),
+        datasets: [{
+          label: '支出分類',
+          data: Object.values(categories),
+          backgroundColor: [
+            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'
+          ]
+        }]
+      };
+
+      const barData = {
+        labels: ['收入', '支出'],
+        datasets: [{
+          label: '本月金額',
+          data: [totalIncome, totalExpense],
+          backgroundColor: ['green', 'red']
+        }]
+      };
+
+      if (window.pieChart && typeof window.pieChart.destroy === 'function') window.pieChart.destroy();
+      if (window.barChart && typeof window.barChart.destroy === 'function') window.barChart.destroy();
+
+      window.pieChart = new Chart(document.getElementById('pieChart'), {
+        type: 'pie',
+        data: pieData
+      });
+
+      window.barChart = new Chart(document.getElementById('barChart'), {
+        type: 'bar',
+        data: barData
+      });
+    }
+
+    renderRecords();
+  </script>
+</body>
+</html>
